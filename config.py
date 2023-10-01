@@ -2,7 +2,7 @@ from torchvision import transforms
 import os
 import time
 
-device = "cuda:1"
+device = "cuda:0"
 seed = 777
 
 sigma = 50
