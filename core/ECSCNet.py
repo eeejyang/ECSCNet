@@ -74,48 +74,6 @@ class SoftThreshold(nn.Module):
         return out
 
 
-class CSCNet(nn.Module):
-
-    def __init__(self, in_ch, num_kernels, kernel_size, stride, num_iter) -> None:
-        super().__init__()
-
-        self.num_iter = num_iter
-
-        self.stride = stride
-        self.conv = torch.nn.Conv2d(in_ch, num_kernels, kernel_size, stride=stride, bias=False)
-        self.convT = torch.nn.ConvTranspose2d(num_kernels, in_ch, kernel_size, stride=stride, bias=False)
-
-        self.decode = torch.nn.ConvTranspose2d(num_kernels, in_ch, kernel_size, stride=stride, bias=False)
-        self.active = SoftThreshold(num_kernels, 0.001)
-
-        W = torch.clone(self.conv.weight.data)
-        eigen = conv_power_method(W, img_size=[100, 100], stride=1, num_iters=100)
-        W /= eigen**0.5
-
-        self.convT.weight.data = torch.clone(W)
-        self.conv.weight.data = torch.clone(W)
-        self.decode.weight.data = torch.clone(W)
-
-    def forward(self, I):
-        mean = I.flatten(1).mean(dim=1).reshape(I.shape[0], 1, 1, 1)
-        I = I - mean
-        shape = I.shape
-        I, valids = pad_conv_stride(I, self.conv.kernel_size[0], self.stride, True)
-        code = self.conv(I)
-        code = self.active(code)
-        for i in range(self.num_iter):
-            res = I - self.convT(code)
-            code = code + self.conv(res)
-            code = self.active(code)
-
-        out = self.decode(code)
-        out = torch.masked_select(out, valids.bool())
-        out = out.reshape(shape[0], -1, *shape[1:])
-        out = out.mean(dim=1, keepdim=False)
-
-        return out + mean
-
-
 class ECSCNet(nn.Module):
 
     def __init__(self, in_ch, num_kernels, kernel_size, stride, num_iter) -> None:
